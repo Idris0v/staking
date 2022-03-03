@@ -16,10 +16,10 @@ contract ERC20 is IERC20, AccessControl {
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
-    constructor(string memory _name, string memory _symbol) {
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
         name = _name;
         symbol = _symbol;
-        decimals = 8;
+        decimals = _decimals;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         grantRole(MINTER, msg.sender);
     }
