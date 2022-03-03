@@ -1,15 +1,14 @@
-//SPDX-License-Identifier: Unlicense
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
 import "./IERC20.sol";
-import "./ERC20.sol";
 
 contract Farming {
     uint8 public rewardPercent = 20;
     uint16 public minimumTime = 600; // Value in seconds
-    ERC20 public farmingToken;
-    ERC20 public lPToken;
-    address private owner;
+    IERC20 public farmingToken;
+    IERC20 public lPToken;
+    address public owner;
 
     struct Farm {
         uint amount;
@@ -21,7 +20,7 @@ contract Farming {
 
     event Rewarded(address indexed to, uint amount);
 
-    constructor(ERC20 _farmingToken, ERC20 _lPToken) {
+    constructor(IERC20 _farmingToken, IERC20 _lPToken) {
         farmingToken = _farmingToken;
         lPToken = _lPToken;
         owner = msg.sender;
@@ -46,8 +45,7 @@ contract Farming {
         require(amount > 0, "Provide more than zero");
         require(farm.amount == 0, "Unstake balances first");
 
-        bool success = lPToken.transferFrom(sender, address(this), amount);
-        require(success, "transferFrom failed");
+        lPToken.transferFrom(sender, address(this), amount);
 
         farm.amount = amount;
         farm.timeStart = block.timestamp;
@@ -63,13 +61,12 @@ contract Farming {
     }
 
     function calculatePendingRewardsAndSend(Farm storage farm) private {
-        uint pendingRewards = block.timestamp - farm.timeStart / minimumTime - farm.rewardsClaimed;
+        uint pendingRewards = (block.timestamp - farm.timeStart) / minimumTime - farm.rewardsClaimed;
 
         if (pendingRewards > 0) {
             farm.rewardsClaimed += pendingRewards;
-            uint reward = farm.amount / 100 * rewardPercent * pendingRewards;
-            bool success = farmingToken.mint(reward, msg.sender);
-            require(success, "mint failed");
+            uint reward = farm.amount / 100 * rewardPercent * pendingRewards / 10**lPToken.decimals();
+            farmingToken.mint(reward * 10**farmingToken.decimals(), msg.sender);
             emit Rewarded(msg.sender, reward);
         }
     }
@@ -82,8 +79,7 @@ contract Farming {
         
         calculatePendingRewardsAndSend(farm);
 
+        lPToken.transfer(sender, farm.amount);
         farm.amount = 0;
-        bool success = lPToken.transfer(sender, farm.amount);
-        require(success, "transfer failed");
     }
 }

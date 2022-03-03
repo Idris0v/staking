@@ -7,7 +7,6 @@ describe("ERC20", function () {
     let farming: Farming;
     let farmingToken: ERC20;
     const farmingTokenDecimals = 8;
-    const _10farmingTokens = ethers.utils.parseUnits('10', farmingTokenDecimals);
     let lpToken: ERC20;
     const lpTokenDecimals = 18;
     const _10lpTokens = ethers.utils.parseUnits('10', lpTokenDecimals);
@@ -35,6 +34,7 @@ describe("ERC20", function () {
     });
 
     it("Should create contract correctly", async function () {
+        expect(await farming.owner()).to.equal(owner.address);
         expect(await farming.farmingToken()).to.equal(farmingToken.address);
         expect(await farming.lPToken()).to.equal(lpToken.address);
     });
@@ -59,21 +59,26 @@ describe("ERC20", function () {
 
     describe('stake method', () => {
         it("Should stake LP tokens", async function () {
-            await lpToken.mint(_10lpTokens, user1.address);
-            await lpToken.connect(user1).approve(farming.address, _10lpTokens);
-            await farming.connect(user1).stake(_10lpTokens);
+            const now = new Date().getTime() / 1000;
+            
+            await mintAndStake10LPTokens(user1);
             const result = await farming.farmers(user1.address);
 
             expect(result.amount).to.equal(ethers.BigNumber.from(_10lpTokens));
-            //   expect(result.timeStart).to.be.greaterThan(0);
+            expect(Number(result.timeStart)).to.be.closeTo(now, 50);
             expect(result.rewardsClaimed).to.equal(0);
         });
 
-        it("Should revert when already has stake", async function () {
+        it("Should revert when already has a stake", async function () {
             lpToken.mint(_10lpTokens, user1.address);
             await lpToken.connect(user1).approve(farming.address, _10lpTokens);
             await farming.connect(user1).stake(addDecimals(5, lpTokenDecimals));
             expect(farming.connect(user1).stake(5)).to.be.revertedWith("Unstake balances first");
+        });
+
+        it("Should revert if user did not approve lpToken", async function () {
+            lpToken.mint(_10lpTokens, user1.address);
+            expect(farming.connect(user1).stake(10)).to.be.reverted;
         });
 
         it("Should revert when provided 0 stake", async function () {
@@ -83,21 +88,19 @@ describe("ERC20", function () {
 
     describe('claim method', () => {
         it("Should claim reward", async function () {
-            await lpToken.mint(_10lpTokens, user1.address);
-            await lpToken.connect(user1).approve(farming.address, _10lpTokens);
-            await farming.connect(user1).stake(_10lpTokens);
+            await mintAndStake10LPTokens(user1);
 
-            await network.provider.send("evm_increaseTime", [600]);
+            await network.provider.send("evm_increaseTime", [700]);
             await network.provider.send("evm_mine");
 
             await farming.connect(user1).claim();
-            expect(farmingToken.balanceOf(user1.address)).to.be.equal(addDecimals(2, farmingTokenDecimals));
+            expect((await farming.farmers(user1.address)).rewardsClaimed).to.equal(ethers.BigNumber.from(1));
+            expect(await lpToken.balanceOf(user1.address)).to.equal(0);
+            expect(await farmingToken.balanceOf(user1.address)).to.equal(addDecimals(2, farmingTokenDecimals));
         });
 
         it("Should revert claim when no rewards", async function () {
-            await lpToken.mint(_10lpTokens, user1.address);
-            await lpToken.connect(user1).approve(farming.address, _10lpTokens);
-            await farming.connect(user1).stake(_10lpTokens);
+            await mintAndStake10LPTokens(user1);
 
             expect(farming.connect(user1).claim()).to.be.revertedWith("No rewards yet");
         });
@@ -109,11 +112,9 @@ describe("ERC20", function () {
 
     describe('unstake method', () => {
         it("Should unstake and receive reward", async function () {
-            await lpToken.mint(_10lpTokens, user1.address);
-            await lpToken.connect(user1).approve(farming.address, _10lpTokens);
-            await farming.connect(user1).stake(_10lpTokens);
+            await mintAndStake10LPTokens(user1);
 
-            await network.provider.send("evm_increaseTime", ['0x258']);
+            await network.provider.send("evm_increaseTime", [600]);
             await network.provider.send("evm_mine");
 
             await farming.connect(user1).unstake();
@@ -122,10 +123,22 @@ describe("ERC20", function () {
             expect(await lpToken.balanceOf(user1.address)).to.be.equal(_10lpTokens);
         });
 
+        it("Should unstake with 0 rewards if user claimed all", async function () {
+            await mintAndStake10LPTokens(user1);
+
+            await network.provider.send("evm_increaseTime", [600]);
+            await network.provider.send("evm_mine");
+
+            await farming.connect(user1).claim();
+            await farming.connect(user1).unstake();
+            const farm = await farming.farmers(user1.address);
+
+            expect(Number(farm.rewardsClaimed)).to.equal(1);
+            expect(farm.amount).to.equal(0);
+        });
+
         it("Should forbid to unstake when minimum time has not passed", async function () {
-            await lpToken.mint(_10lpTokens, user1.address);
-            await lpToken.connect(user1).approve(farming.address, _10lpTokens);
-            await farming.connect(user1).stake(_10lpTokens);
+            await mintAndStake10LPTokens(user1);
 
             expect(farming.connect(user1).unstake()).to.be.revertedWith("Can't unstake yet");
         });
@@ -137,5 +150,11 @@ describe("ERC20", function () {
 
     function addDecimals(num: number, decimals: number) {
         return ethers.utils.parseUnits(num.toString(), decimals);
+    }
+
+    async function mintAndStake10LPTokens(to: SignerWithAddress) {
+        await lpToken.mint(_10lpTokens, to.address);
+        await lpToken.connect(to).approve(farming.address, _10lpTokens);
+        await farming.connect(to).stake(_10lpTokens);
     }
 });

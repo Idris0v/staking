@@ -3,6 +3,8 @@
 pragma solidity ^0.8.9;
 
 interface IERC20 {
+    function decimals() external view returns (uint8);
+
     function totalSupply() external view returns (uint);
 
     function balanceOf(address account) external view returns (uint);
@@ -18,6 +20,9 @@ interface IERC20 {
         address recipient,
         uint amount
     ) external returns (bool);
+
+    function mint(uint amount, address to) external returns (bool);
+    function burn(uint amount, address from) external returns (bool);
 
     event Transfer(address indexed from, address indexed to, uint value);
     event Approval(address indexed owner, address indexed spender, uint value);

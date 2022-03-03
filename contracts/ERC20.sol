@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.9;
 
@@ -16,10 +16,10 @@ contract ERC20 is IERC20, AccessControl {
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
-    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+    constructor(string memory _name, string memory _symbol) {
         name = _name;
         symbol = _symbol;
-        decimals = _decimals;
+        decimals = 8;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         grantRole(MINTER, msg.sender);
     }
