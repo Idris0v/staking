@@ -14,6 +14,10 @@ dotenv.config();
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
+      forking: {
+        url: 'https://mainnet.infura.io/v3/' + process.env.INFURA_KEY,
+        // blockNumber: 12883802 paid option on Infura
+      }
     },
     rinkeby: {
       url: process.env.RINKEBY_URL || "",
